@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🍉 Sol's Watermelon Game 🍉</title>
+<style>
+  html, body {
+    margin: 0; height: 100%;
+    background: #0d3b0d;
+    font-family: -apple-system, Helvetica, Arial, sans-serif;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    color: #fff; -webkit-user-select: none; user-select: none;
+  }
+  h1 { margin: 12px 0 6px; font-size: 26px; }
+  #wrap { position: relative; }
+  canvas {
+    background: #87CEEB; border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0,0,0,.5);
+    cursor: crosshair; touch-action: none;
+  }
+  p.tip { margin: 8px 0 16px; opacity: .8; font-size: 14px; }
+</style>
+</head>
+<body>
+  <h1>🍉 Sol's Watermelon Game 🍉</h1>
+  <div id="wrap">
+    <canvas id="game" width="800" height="600"></canvas>
+  </div>
+  <p class="tip">Click / tap anywhere to throw a watermelon at the people. 60 seconds — go!</p>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+const W = canvas.width, H = canvas.height;
+const GAME_SECONDS = 60;
+
+let people, melons, splats;
+let score, thrown, hits, timeLeft, running;
+let launcherX, launcherY;
+let lastSpawn, spawnDelay, lastSecond;
+
+function reset() {
+  people = []; melons = []; splats = [];
+  score = 0; thrown = 0; hits = 0;
+  timeLeft = GAME_SECONDS; running = true;
+  launcherX = W / 2; launcherY = H - 60;
+  lastSpawn = 0; spawnDelay = 800; lastSecond = 0;
+  spawnPerson();
+}
+
+function rand(a, b) { return a + Math.random() * (b - a); }
+
+function spawnPerson() {
+  const fromLeft = Math.random() < 0.5;
+  const y = rand(120, H - 120);
+  const size = rand(30, 46);
+  const speed = rand(1.2, 3.2);
+  people.push({
+    x: fromLeft ? -30 : W + 30,
+    y, size,
+    vx: fromLeft ? speed : -speed,
+  });
+}
+
+function throwMelon(px, py) {
+  if (!running) { reset(); return; }
+  const sx = launcherX, sy = launcherY - 20;
+  const dx = px - sx, dy = py - sy;
+  const dist = Math.max(Math.hypot(dx, dy), 1);
+  const s = 14;
+  melons.push({ x: sx, y: sy, vx: s * dx / dist, vy: s * dy / dist });
+  thrown++;
+}
+
+function pointerPos(e) {
+  const r = canvas.getBoundingClientRect();
+  const cx = (e.touches ? e.touches[0].clientX : e.clientX) - r.left;
+  const cy = (e.touches ? e.touches[0].clientY : e.clientY) - r.top;
+  return { x: cx * W / r.width, y: cy * H / r.height };
+}
+canvas.addEventListener("mousedown", e => { const p = pointerPos(e); throwMelon(p.x, p.y); });
+canvas.addEventListener("touchstart", e => { e.preventDefault(); const p = pointerPos(e); throwMelon(p.x, p.y); }, {passive:false});
+
+function drawEmoji(txt, x, y, size) {
+  ctx.font = size + "px serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(txt, x, y);
+}
+
+function update(dt, now) {
+  // spawn
+  if (now - lastSpawn > spawnDelay) {
+    spawnPerson();
+    lastSpawn = now;
+    spawnDelay = rand(500, 1400);
+  }
+  // clock
+  if (now - lastSecond >= 1000) {
+    timeLeft--; lastSecond = now;
+    if (timeLeft <= 0) { timeLeft = 0; running = false; }
+  }
+  // people
+  for (let i = people.length - 1; i >= 0; i--) {
+    const p = people[i];
+    p.x += p.vx;
+    if (p.x < -60 || p.x > W + 60) people.splice(i, 1);
+  }
+  // melons + collisions
+  for (let i = melons.length - 1; i >= 0; i--) {
+    const m = melons[i];
+    m.x += m.vx; m.y += m.vy;
+    let hit = false;
+    for (let j = people.length - 1; j >= 0; j--) {
+      const p = people[j];
+      const r = p.size * 0.7;
+      if (Math.abs(m.x - p.x) < r && Math.abs(m.y - p.y) < r) {
+        splats.push({ x: p.x, y: p.y, life: 18 });
+        people.splice(j, 1);
+        score += 10; hits++; hit = true; break;
+      }
+    }
+    const off = m.x < -40 || m.x > W + 40 || m.y < -40 || m.y > H + 40;
+    if (hit || off) melons.splice(i, 1);
+  }
+  // splats
+  for (let i = splats.length - 1; i >= 0; i--) {
+    if (--splats[i].life <= 0) splats.splice(i, 1);
+  }
+}
+
+function draw() {
+  // sky
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = "#87CEEB"; ctx.fillRect(0, 0, W, H);
+  // ground
+  ctx.fillStyle = "#6ab150"; ctx.fillRect(0, H - 60, W, 60);
+  // launcher
+  drawEmoji("🧺", launcherX, launcherY - 10, 40);
+  // people, melons, splats
+  people.forEach(p => drawEmoji("🧍", p.x, p.y, p.size));
+  melons.forEach(m => drawEmoji("🍉", m.x, m.y, 30));
+  splats.forEach(s => drawEmoji("💥", s.x, s.y, 44));
+  // HUD
+  ctx.fillStyle = "#1a1a1a";
+  ctx.font = "bold 22px Helvetica";
+  ctx.textAlign = "left"; ctx.textBaseline = "top";
+  ctx.fillText("Score: " + score, 16, 14);
+  ctx.textAlign = "right";
+  ctx.fillText("Time: " + timeLeft, W - 16, 14);
+
+  if (!running) {
+    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    ctx.fillRect(150, 180, W - 300, H - 360);
+    ctx.strokeStyle = "#6ab150"; ctx.lineWidth = 4;
+    ctx.strokeRect(150, 180, W - 300, H - 360);
+    ctx.fillStyle = "#1a1a1a"; ctx.textAlign = "center";
+    ctx.font = "bold 30px Helvetica";
+    ctx.fillText("⏰ TIME'S UP! ⏰", W/2, 235);
+    ctx.fillStyle = "#c0392b"; ctx.font = "26px Helvetica";
+    ctx.fillText("Final Score: " + score, W/2, 295);
+    const acc = thrown ? Math.round(hits / thrown * 100) : 0;
+    ctx.fillStyle = "#333"; ctx.font = "16px Helvetica";
+    ctx.fillText(`Hits: ${hits}   Thrown: ${thrown}   Accuracy: ${acc}%`, W/2, 340);
+    ctx.fillStyle = "#0d7a2f"; ctx.font = "bold 20px Helvetica";
+    ctx.fillText("▶ Click to Play Again", W/2, 390);
+  }
+}
+
+let last = 0;
+function loop(now) {
+  if (!last) last = now;
+  const dt = now - last; last = now;
+  if (running) update(dt, now);
+  draw();
+  requestAnimationFrame(loop);
+}
+
+reset();
+lastSpawn = performance.now();
+lastSecond = performance.now();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
