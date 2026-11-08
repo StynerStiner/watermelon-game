@@ -4,7 +4,7 @@ Throw watermelons at the people walking by! Hit them for points before the 60-se
 
 ## ▶️ Play online
 
-**[Play it here!](https://stynerdev225.github.io/watermelon-game/)** — works in any browser, desktop or phone.
+**[Play it here!](https://watermelonweb.vercel.app/)** — works in any browser, desktop or phone.
 
 ## 🎮 How to play
 
